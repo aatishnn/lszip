@@ -78,6 +78,47 @@ def generate_range_header(lowByte=0, highByte=''):
     range = 'bytes=%s-%s' %(lowByte, highByte)
     return {'Range': range}
 
+def zip_is_valid_ecd(bytes):
+    '''
+    Given bytes of data, this function validates it for "End of Central Directory"
+    entry. 
+    
+    It checks for two scenarios: 
+    * ECD with no ZIP archive comment
+    * ECD with ZIP archive comment
+    '''
+    
+    # Unpack it, check signature and check comment's length
+    ecd = struct.unpack(structECD, bytes[: sizeECD])
+    
+    if ecd[_ECD_SIGNATURE] != int(signECD):
+        return False
+
+    # Signature is correct. Check comment length's validity
+    if (sizeECD + ecd[_ECD_COMMENT_SIZE]) != len(bytes):
+        return False
+    
+    return True
+
+
+def zip_get_ecd_index(bytes):
+    '''
+    Given bytes of data, this function searches for "End of Central Directory" Entry and
+    returns its index.
+    '''
+    if len(bytes) < sizeECD:
+        return None
+    # Start at minimum index from end, where ECD can exist
+    startIndex = len(bytes) - sizeECD
+    
+    while startIndex >= 0:
+        if zip_is_valid_ecd(bytes[startIndex:]):
+            # Found
+            return startIndex
+        startIndex -= 1
+    return None
+
+
 def main():
     url = sys.argv[1]
 
