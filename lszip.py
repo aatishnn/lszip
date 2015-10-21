@@ -122,27 +122,52 @@ def zip_get_ecd(bytes):
         startIndex -= 1
     return None
 
+def index_in_sub_array(index, subarray_size, array_size):
+    '''
+    Checks whether the index of larger array lies inside the sub-array
+    Eg: Array a = [2, 3, 44, 55, 666]
+        Subarray b = [44, 55, 666]
+        index_in_sub_array(1, len(b), len(a)) = False
+        index_in_sub_array(2, len(b), len(a)) = True
+    No check is done for out-of-bounds
+    '''
+    if index < array_size - subarray_size:
+        return False
+    return True
+
 
 def main():
     url = sys.argv[1]
 
     s = requests.Session()
-    headers = generate_range_header(lowByte=-sizeECD)
+    # Get around 65kb of data in case the file has archive comment
+    request_data_size = sizeECD + ZIP_ECD_MAX_COMMENT
+    headers = generate_range_header(lowByte=-(request_data_size))
 
     r = s.get(url, headers=headers)
-
-    print r.content
+    print r.headers
+    # print r.content
     sys.stdout.flush()
     assert r.status_code == 206
+    
+    # Get archive size from reply header 'Content-Range' as 22-23232/23233
+    archive_size = int(r.headers['Content-Range'].split('-')[1].split('/')[1])
+    ecd = zip_get_ecd(r.content)
 
-    end_of_central_dir = struct.unpack(structECD, r.content)
-    start_offset = end_of_central_dir[6]
-    assert end_of_central_dir[_ECD_SIGNATURE] == int(signECD)
+    if not ecd:
+        print "Not a valid ZIP file. Exiting.." 
+        sys.exit(-1)
 
-    print "Now requesting bytes from:" + str(start_offset)
-    headers = generate_range_header(start_offset)
+    # Get Central Directory start offset relative to whole ZIP archive
+    cd_start_offset = ecd[_ECD_OFFSET]
 
-    r = s.get(url, headers=headers)
+    # Check if Central Directory starts outside bytes we have already downloaded
+    if not index_in_subarray(cd_start_offset, request_data_size, archive_size):
+        # Download Central Directory
+        print "Requesting Central Directory Entry"
+        print "Now requesting bytes from:" + str(cd_start_offset)
+        headers = generate_range_header(cd_start_offset)
+        r = s.get(url, headers=headers)
 
 
     i = 0
@@ -164,7 +189,7 @@ def main():
 
         file_count += 1
 
-    assert end_of_central_dir[_ECD_ENTRIES_TOTAL] == file_count
+    assert ecd[_ECD_ENTRIES_TOTAL] == file_count
 
     
 if __name__ == '__main__':
