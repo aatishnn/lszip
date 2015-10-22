@@ -125,6 +125,7 @@ def zip_get_ecd(bytes):
 def index_in_sub_array(index, subarray_size, array_size):
     '''
     Checks whether the index of larger array lies inside the sub-array
+    made from skipping certain elements from the "front".
     Eg: Array a = [2, 3, 44, 55, 666]
         Subarray b = [44, 55, 666]
         index_in_sub_array(1, len(b), len(a)) = False
