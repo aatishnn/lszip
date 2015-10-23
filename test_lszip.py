@@ -15,13 +15,13 @@ class HelpersTest(unittest.TestCase):
         header_range = lszip.generate_range_header(-20)
         self.assertEqual(header_range, {'Range': 'bytes=-20'})
 
-    def test_index_in_sub_array(self):
+    def test_index_in_subarray(self):
         arr = [2, 3, 44, 55, 666]
         b = arr[2:]
-        self.assertTrue(lszip.index_in_sub_array(2, len(b), len(arr)))
-        self.assertTrue(lszip.index_in_sub_array(4, len(b), len(arr)))
-        self.assertFalse(lszip.index_in_sub_array(1, len(b), len(arr)))
-        self.assertFalse(lszip.index_in_sub_array(0, len(b), len(arr)))
+        self.assertTrue(lszip.index_in_subarray(2, len(b), len(arr)))
+        self.assertTrue(lszip.index_in_subarray(4, len(b), len(arr)))
+        self.assertFalse(lszip.index_in_subarray(1, len(b), len(arr)))
+        self.assertFalse(lszip.index_in_subarray(0, len(b), len(arr)))
 
 class ZipTest(unittest.TestCase):
     def setUp(self):

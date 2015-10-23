@@ -122,7 +122,7 @@ def zip_get_ecd(bytes):
         startIndex -= 1
     return None
 
-def index_in_sub_array(index, subarray_size, array_size):
+def index_in_subarray(index, subarray_size, array_size):
     '''
     Checks whether the index of larger array lies inside the sub-array
     made from skipping certain elements from the "front".
@@ -162,6 +162,8 @@ def main():
     # Get Central Directory start offset relative to whole ZIP archive
     cd_start_offset = ecd[_ECD_OFFSET]
 
+    # i represents index where Central Directory starts in request_data(r.content)
+    i = 0
     # Check if Central Directory starts outside bytes we have already downloaded
     if not index_in_subarray(cd_start_offset, request_data_size, archive_size):
         # Download Central Directory
@@ -170,8 +172,13 @@ def main():
         headers = generate_range_header(cd_start_offset)
         r = s.get(url, headers=headers)
 
+    else:
+        # Modify index (in terms of request_data_size) to start at cd_start_offset
+        # Eg: archive size = 12, request_data_size = 10, cd_start_offset=4
+        # Then, i = 4 - (12-10)
 
-    i = 0
+        i = cd_start_offset - (archive_size - request_data_size)
+
     file_count = 0
     while i + sizeCD < len(r.content) - sizeECD:
         central_dir_header = struct.unpack(structCD, r.content[i:i+sizeCD])
