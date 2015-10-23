@@ -14,4 +14,7 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 * Support ZIP64
 * Selective Download
 
+## References
+[ZIP Archive Specification](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT)
+
 
