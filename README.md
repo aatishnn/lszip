@@ -8,7 +8,7 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 
 ## Usage
 ````
-# lszip http://example.com/zipfile.zip
+# python lszip.py http://example.com/zipfile.zip
 ````  
 ## Todo/Future Enhancements
 * Support ZIP64
