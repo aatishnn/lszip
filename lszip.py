@@ -60,6 +60,27 @@ _CD_INTERNAL_FILE_ATTRIBUTES = 14
 _CD_EXTERNAL_FILE_ATTRIBUTES = 15
 _CD_LOCAL_HEADER_OFFSET = 16
 
+# Structure of "Local File Header"
+# excluding variable fields: file_name and extra_field
+structLHeader = '<I5H3I2H'
+sizeLHeader = struct.calcsize(structLHeader)
+
+# First 4 bytes of Local File header should match this
+signLHeader = 0x04034b50
+
+# Indices of entries in Local File header
+_CD_SIGNATURE = 0
+_CD_VERSION_TO_EXTRACT = 1
+_CD_GP_BIT_FLAG = 2
+_CD_COMPRESSION = 3
+_CD_TIME = 4
+_CD_DATE = 5
+_CD_CRC = 6
+_CD_COMPRESSED_SIZE = 7
+_CD_UNCOMPRESSED_SIZE = 8
+_CD_FILENAME_LENGTH = 9
+_CD_EXTRA_FIELD_LENGTH = 10
+
 
 def generate_range_header(lowByte=0, highByte=''):
     '''
