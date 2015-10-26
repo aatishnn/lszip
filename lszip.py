@@ -3,6 +3,7 @@ import sys
 import struct
 import os
 import zlib
+import argparse
 
 debug = False
 
@@ -202,7 +203,11 @@ def get_file(session, url, local_header_offset, filename):
 
 
 def main():
-    url = sys.argv[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url", help="ZIP File's URL")
+    args = parser.parse_args()
+
+    url = args.url
 
     s = requests.Session()
     # Get around 65kb of data in case the file has archive comment
