@@ -1,5 +1,5 @@
 # lszip
-List ZIP archive's files without downloading the whole archive
+List ZIP archive's files without downloading the whole archive.
 Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 
 ## Requirements
