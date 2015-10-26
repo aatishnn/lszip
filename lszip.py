@@ -1,8 +1,10 @@
 import requests
 import sys
 import struct
+import os
+import zlib
 
-debug = True
+debug = False
 
 if debug:
     import httplib
@@ -69,18 +71,22 @@ sizeLHeader = struct.calcsize(structLHeader)
 signLHeader = 0x04034b50
 
 # Indices of entries in Local File header
-_CD_SIGNATURE = 0
-_CD_VERSION_TO_EXTRACT = 1
-_CD_GP_BIT_FLAG = 2
-_CD_COMPRESSION = 3
-_CD_TIME = 4
-_CD_DATE = 5
-_CD_CRC = 6
-_CD_COMPRESSED_SIZE = 7
-_CD_UNCOMPRESSED_SIZE = 8
-_CD_FILENAME_LENGTH = 9
-_CD_EXTRA_FIELD_LENGTH = 10
+_LH_SIGNATURE = 0
+_LH_VERSION_TO_EXTRACT = 1
+_LH_GP_BIT_FLAG = 2
+_LH_COMPRESSION = 3
+_LH_TIME = 4
+_LH_DATE = 5
+_LH_CRC = 6
+_LH_COMPRESSED_SIZE = 7
+_LH_UNCOMPRESSED_SIZE = 8
+_LH_FILENAME_LENGTH = 9
+_LH_EXTRA_FIELD_LENGTH = 10
 
+
+# Compression Methods
+_COMPR_STORED = 0
+_COMPR_DEFLATE = 8
 
 def generate_range_header(lowByte=0, highByte=''):
     '''
@@ -157,6 +163,43 @@ def index_in_subarray(index, subarray_size, array_size):
         return False
     return True
 
+def get_file(session, url, local_header_offset, filename):
+    print "Requesting local file header"
+    headers = generate_range_header(local_header_offset, local_header_offset + sizeLHeader - 1)
+    r = session.get(url, headers=headers)
+    local_header = struct.unpack(structLHeader, r.content)
+    compression_method = local_header[_LH_COMPRESSION]
+    print "Compr Size: %s  file len: %s  extra len: %s" %(local_header[_LH_COMPRESSED_SIZE], local_header[_LH_FILENAME_LENGTH], local_header[_LH_EXTRA_FIELD_LENGTH])
+
+    if compression_method == _COMPR_STORED:
+        file_data_start_offset = local_header_offset \
+                                    + sizeLHeader   \
+                                    + local_header[_LH_FILENAME_LENGTH] \
+                                    + local_header[_LH_EXTRA_FIELD_LENGTH] 
+        headers = generate_range_header(file_data_start_offset, file_data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
+        print "Downloading data " + str(headers)
+        r = session.get(url, headers=headers)
+        with open(os.path.basename(filename), 'wb') as outfile:
+            outfile.write(r.content)
+            print "Wrote data to : " + os.path.basename(filename)
+
+    elif compression_method == _COMPR_DEFLATE:
+        print "Extracting deflated file..."
+        file_data_start_offset = local_header_offset \
+                                    + sizeLHeader   \
+                                    + local_header[_LH_FILENAME_LENGTH] \
+                                    + local_header[_LH_EXTRA_FIELD_LENGTH] 
+        headers = generate_range_header(file_data_start_offset, file_data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
+        print "Downloading data " + str(headers)
+        r = session.get(url, headers=headers)
+        with open(os.path.basename(filename), 'wb') as outfile:
+            # Negative value suppresses standard gzip header check
+            outfile.write(zlib.decompress(r.content, -15))
+            print "Wrote data to : " + os.path.basename(filename)
+    else:
+        print "Unsupported Compression Method"
+
+
 
 def main():
     url = sys.argv[1]
@@ -210,10 +253,15 @@ def main():
         filename_length = central_dir_header[_CD_FILENAME_LENGTH]
         extra_field_length = central_dir_header[_CD_EXTRA_FIELD_LENGTH]
         file_comment_length = central_dir_header[_CD_COMMENT_LENGTH]
-
+        local_header_offset = central_dir_header[_CD_LOCAL_HEADER_OFFSET]
+        compressed_size = central_dir_header[_CD_COMPRESSED_SIZE]
+ 
         filename = struct.unpack('<' + str(filename_length) + 's',
                                  r.content[i + sizeCD:(i + sizeCD + filename_length)])
         print filename[0]
+        download_file = raw_input('Download ? [Y/N] : ')
+        if download_file.lower() == 'y':
+            get_file(s, url, local_header_offset, filename[0])
         i = i+ sizeCD + filename_length + extra_field_length + file_comment_length
 
         file_count += 1
