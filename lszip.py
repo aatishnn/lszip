@@ -167,48 +167,18 @@ def index_in_subarray(index, subarray_size, array_size):
         return False
     return True
 
-def get_file(session, url, local_header_offset, filename):
-    print "Requesting local file header"
-    headers = generate_range_header(local_header_offset, local_header_offset + sizeLHeader - 1)
-    r = session.get(url, headers=headers)
-    local_header = struct.unpack(structLHeader, r.content)
-    compression_method = local_header[_LH_COMPRESSION]
-    print "Compr Size: %s  file len: %s  extra len: %s" %(local_header[_LH_COMPRESSED_SIZE], local_header[_LH_FILENAME_LENGTH], local_header[_LH_EXTRA_FIELD_LENGTH])
-
-    if compression_method == _COMPR_STORED:
-        file_data_start_offset = local_header_offset \
-                                    + sizeLHeader   \
-                                    + local_header[_LH_FILENAME_LENGTH] \
-                                    + local_header[_LH_EXTRA_FIELD_LENGTH] 
-        headers = generate_range_header(file_data_start_offset, file_data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
-        print "Downloading data " + str(headers)
-        r = session.get(url, headers=headers)
-        with open(os.path.basename(filename), 'wb') as outfile:
-            outfile.write(r.content)
-            print "Wrote data to : " + os.path.basename(filename)
-
-    elif compression_method == _COMPR_DEFLATE:
-        print "Extracting deflated file..."
-        file_data_start_offset = local_header_offset \
-                                    + sizeLHeader   \
-                                    + local_header[_LH_FILENAME_LENGTH] \
-                                    + local_header[_LH_EXTRA_FIELD_LENGTH] 
-        headers = generate_range_header(file_data_start_offset, file_data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
-        print "Downloading data " + str(headers)
-        r = session.get(url, headers=headers)
-        with open(os.path.basename(filename), 'wb') as outfile:
-            # Negative value suppresses standard gzip header check
-            outfile.write(zlib.decompress(r.content, -15))
-            print "Wrote data to : " + os.path.basename(filename)
-    else:
-        print "Unsupported Compression Method"
-
-
 class CDEntry(object):
-    ''' Central Directory Entry '''
+    ''' 
+    Class for holding Central Directory Entry contents
+    as well as file data and helper functions for extracting it
+    '''
     # ID is assigned by classmethod "get_cd_entries"
     # Used for specifiying download in download mode
     id = None
+
+    file_data = None
+
+    is_dir = False
 
     def __init__(self, bytes):
         ''' 
@@ -226,10 +196,16 @@ class CDEntry(object):
         self.local_header_offset = central_dir_header[_CD_LOCAL_HEADER_OFFSET]
         self.compressed_size = central_dir_header[_CD_COMPRESSED_SIZE]
 
+        if self.compressed_size == 0:
+            self.is_dir = True
+
+        self.compression_method = central_dir_header[_CD_COMPRESSION]
+
         self.filename = struct.unpack('<' + str(self.filename_length) + 's',
                                  bytes[sizeCD:sizeCD + self.filename_length])[0]
     def __str__(self):
         return '%s : %s' %(self.id, self.filename)
+
     @property    
     def total_size(self):
         ''' 
@@ -237,6 +213,24 @@ class CDEntry(object):
         cd_header + filename_length + comment_length + extra_field_length
         '''
         return sizeCD + self.filename_length + self.extra_field_length + self.comment_length
+
+    def extract(self, filename):
+        '''
+        Extracts the data to given filename
+        '''
+
+        if self.is_dir:
+            raise NotImplementedError('Directory Download is not implemented')
+
+        if self.compression_method not in (_COMPR_DEFLATE, _COMPR_STORED):
+            return -1
+        with open(filename, 'wb') as outfile:
+            if self.compression_method == _COMPR_DEFLATE:
+                # Negative value suppresses standard gzip header check
+                outfile.write(zlib.decompress(self.file_data, -15))
+            elif self.compression_method == _COMPR_STORED:
+                outfile.write(self.file_data)
+
 
     @classmethod
     def get_cd_entries(cls, bytes):
@@ -255,7 +249,6 @@ class CDEntry(object):
             i += 1
 
         return cd_entries
-
 
 class ZIPRetriever(object):
     '''
@@ -316,8 +309,8 @@ class ZIPRetriever(object):
         # Check if Central Directory starts outside bytes we have already downloaded
         if not index_in_subarray(cd_start_offset, ZIP_ECD_MAX_SIZE, self.archive_size):
             # Download Central Directory
-            print "Requesting Central Directory Entry"
-            print "Now requesting bytes from:" + str(cd_start_offset)
+            # print "Requesting Central Directory Entry"
+            # print "Now requesting bytes from:" + str(cd_start_offset)
             r = self.get_response(lowByte=cd_start_offset)
 
         else:
@@ -330,29 +323,67 @@ class ZIPRetriever(object):
 
         return r.content[i:]
 
+    def get_local_header(self, cd_entry):
+        '''
+        Returns local header for given central dir entry
+        '''
+        local_header_offset = cd_entry.local_header_offset
+        r = self.get_response(local_header_offset, local_header_offset + sizeLHeader - 1)
+
+        local_header = struct.unpack(structLHeader, r.content)
+        return local_header
+
+    def get_file_data(self, cd_entry, local_header):
+        '''
+        Returns file data represented by given local_header and cd_entry
+        '''
+        data_start_offset = cd_entry.local_header_offset \
+                                    + sizeLHeader   \
+                                    + local_header[_LH_FILENAME_LENGTH] \
+                                    + local_header[_LH_EXTRA_FIELD_LENGTH]
+        r = self.get_response(data_start_offset, data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
+        return r.content
+
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("url", help="ZIP File's URL")
+    parser.add_argument("--nolist", action="store_true", default=False, help="Disable Listing of Files")
+    parser.add_argument("--download", type=str,
+                       help='List of Comma Separated IDs to download. IDs are listed in listing mode.')
     args = parser.parse_args()
 
     url = args.url
 
     retriever = ZIPRetriever(url)    
-    print type(retriever)
-
     central_dir_data = retriever.get_cd_bytes()
 
     cd_entries = CDEntry.get_cd_entries(central_dir_data)
-    for cd_entry in cd_entries:
-        print cd_entry
-
-        # download_file = raw_input('Download ? [Y/N] : ')
-        # if download_file.lower() == 'y':
-        #     get_file(s, url, local_header_offset, filename[0])
-
     assert retriever.ecd[_ECD_ENTRIES_TOTAL] == len(cd_entries)
+
+    if not args.nolist:
+        for cd_entry in cd_entries:
+            print cd_entry
+    
+    if args.download:
+        download_ids = args.download.split(',')
+        for id, cd_entry in enumerate(cd_entries):
+            if str(id) in download_ids:
+                if cd_entry.is_dir:
+                    print "Download %s - %s:Directory Download not supported" %(id, cd_entry.filename)
+                    continue
+                local_header = retriever.get_local_header(cd_entry)
+                data = retriever.get_file_data(cd_entry, local_header)
+
+                cd_entry.file_data = data
+                # Some archivers set this value only in local header
+                cd_entry.compression_method = local_header[_LH_COMPRESSION]
+
+                filename = os.path.basename(cd_entry.filename)
+                cd_entry.extract(filename)
+                print "Download %s - %s: Extracted to %s" %(id, cd_entry.filename, filename)
+
 
     
 if __name__ == '__main__':
