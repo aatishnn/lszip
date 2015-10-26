@@ -21,6 +21,8 @@ ZIP_ECD_MAX_COMMENT = (1 << 8*2) - 1
 structECD = '<I4HIIH'
 sizeECD = struct.calcsize(structECD)
 
+ZIP_ECD_MAX_SIZE = sizeECD + ZIP_ECD_MAX_COMMENT
+
 # First 4 bytes of ECD should match this
 signECD = 0x06054b50
 
@@ -105,6 +107,7 @@ def generate_range_header(lowByte=0, highByte=''):
     # Eg: {'Range': 'bytes=22-200'} , {'Range': 'bytes=22-'}  
     range = 'bytes=%s-%s' %(lowByte, highByte)
     return {'Range': range}
+
 
 def zip_get_valid_ecd(bytes):
     '''
@@ -254,6 +257,78 @@ class CDEntry(object):
         return cd_entries
 
 
+class ZIPRetriever(object):
+    '''
+    Download Helper class that uses a single requests session
+    '''
+    session = None
+    url = None
+
+    # Populated by get_ecd_bytes
+    archive_size = None
+
+    ecd = None
+
+    def __init__(self, url=''):
+        self.session = requests.Session()
+        self.url = url
+
+    def get_response(self, lowByte=0, highByte=''):
+        '''
+        Low level function to get response of request from lowByte to highByte
+        whose descriptions are as same as in generate_range_header
+        '''
+        headers = generate_range_header(lowByte=lowByte, highByte=highByte)
+        response = self.session.get(self.url, headers=headers)
+        assert response.status_code == 206
+        return response
+
+
+    def get_ecd(self):
+        '''
+        Returns ECD array by downloading ZIP_ECD_MAX_SIZE bytes
+        '''
+        # Get around 65kb of data in case the file has archive comment
+        request_data_size = ZIP_ECD_MAX_SIZE
+        response = self.get_response(lowByte=-(request_data_size))
+        
+        # Populate archive size from reply header like : 'Content-Range': 22-23232/23233
+        self.archive_size = int(response.headers['Content-Range'].split('-')[1].split('/')[1])
+        
+        self.ecd = zip_get_ecd(response.content)
+
+        return self.ecd
+
+    def get_cd_bytes(self):
+        '''
+        Returns bytes from which central directory starts
+        '''
+        ecd = self.get_ecd()
+
+        if not ecd:
+            raise Exception('Bad Zip File')
+
+        # Get Central Directory start offset relative to whole ZIP archive
+        cd_start_offset = ecd[_ECD_OFFSET]
+
+        # i represents index where Central Directory starts in request_data(r.content)
+        i = 0
+        # Check if Central Directory starts outside bytes we have already downloaded
+        if not index_in_subarray(cd_start_offset, ZIP_ECD_MAX_SIZE, self.archive_size):
+            # Download Central Directory
+            print "Requesting Central Directory Entry"
+            print "Now requesting bytes from:" + str(cd_start_offset)
+            r = self.get_response(lowByte=cd_start_offset)
+
+        else:
+            # Modify index (in terms of request_data_size == ZIP_ECD_MAX_SIZE ) to 
+            # start at cd_start_offset
+            # Eg: archive size = 12, request_data_size = 10, cd_start_offset=4
+            # Then, i = 4 - (12-10)
+
+            i = cd_start_offset - (self.archive_size - ZIP_ECD_MAX_SIZE)
+
+        return r.content[i:]
 
 
 
@@ -264,47 +339,12 @@ def main():
 
     url = args.url
 
-    s = requests.Session()
-    # Get around 65kb of data in case the file has archive comment
-    request_data_size = sizeECD + ZIP_ECD_MAX_COMMENT
-    headers = generate_range_header(lowByte=-(request_data_size))
+    retriever = ZIPRetriever(url)    
+    print type(retriever)
 
-    r = s.get(url, headers=headers)
-    print r.headers
-    # print r.content
-    sys.stdout.flush()
-    assert r.status_code == 206
-    
-    # Get archive size from reply header 'Content-Range' as 22-23232/23233
-    archive_size = int(r.headers['Content-Range'].split('-')[1].split('/')[1])
-    ecd = zip_get_ecd(r.content)
+    central_dir_data = retriever.get_cd_bytes()
 
-    if not ecd:
-        print "Not a valid ZIP file. Exiting.." 
-        sys.exit(-1)
-
-    # Get Central Directory start offset relative to whole ZIP archive
-    cd_start_offset = ecd[_ECD_OFFSET]
-
-    # i represents index where Central Directory starts in request_data(r.content)
-    i = 0
-    # Check if Central Directory starts outside bytes we have already downloaded
-    if not index_in_subarray(cd_start_offset, request_data_size, archive_size):
-        # Download Central Directory
-        print "Requesting Central Directory Entry"
-        print "Now requesting bytes from:" + str(cd_start_offset)
-        headers = generate_range_header(cd_start_offset)
-        r = s.get(url, headers=headers)
-
-    else:
-        # Modify index (in terms of request_data_size) to start at cd_start_offset
-        # Eg: archive size = 12, request_data_size = 10, cd_start_offset=4
-        # Then, i = 4 - (12-10)
-
-        i = cd_start_offset - (archive_size - request_data_size)
-
-
-    cd_entries = CDEntry.get_cd_entries(r.content[i:])
+    cd_entries = CDEntry.get_cd_entries(central_dir_data)
     for cd_entry in cd_entries:
         print cd_entry
 
@@ -312,7 +352,7 @@ def main():
         # if download_file.lower() == 'y':
         #     get_file(s, url, local_header_offset, filename[0])
 
-    assert ecd[_ECD_ENTRIES_TOTAL] == len(cd_entries)
+    assert retriever.ecd[_ECD_ENTRIES_TOTAL] == len(cd_entries)
 
     
 if __name__ == '__main__':
