@@ -201,6 +201,61 @@ def get_file(session, url, local_header_offset, filename):
         print "Unsupported Compression Method"
 
 
+class CDEntry(object):
+    ''' Central Directory Entry '''
+    # ID is assigned by classmethod "get_cd_entries"
+    # Used for specifiying download in download mode
+    id = None
+
+    def __init__(self, bytes):
+        ''' 
+        bytes: Raw bytes including filename, extra_field and file_comment. Extra bytes
+               are neglected
+        '''
+        central_dir_header = struct.unpack(structCD, bytes[:sizeCD])
+        
+        if central_dir_header[_CD_SIGNATURE] != int(signCD):
+            raise Exception('Bad Central Directory Header')
+
+        self.filename_length = central_dir_header[_CD_FILENAME_LENGTH]
+        self.extra_field_length = central_dir_header[_CD_EXTRA_FIELD_LENGTH]
+        self.comment_length = central_dir_header[_CD_COMMENT_LENGTH]
+        self.local_header_offset = central_dir_header[_CD_LOCAL_HEADER_OFFSET]
+        self.compressed_size = central_dir_header[_CD_COMPRESSED_SIZE]
+
+        self.filename = struct.unpack('<' + str(self.filename_length) + 's',
+                                 bytes[sizeCD:sizeCD + self.filename_length])[0]
+    def __str__(self):
+        return '%s : %s' %(self.id, self.filename)
+    @property    
+    def total_size(self):
+        ''' 
+        Returns total size of Central Dir Entry equivalent to:
+        cd_header + filename_length + comment_length + extra_field_length
+        '''
+        return sizeCD + self.filename_length + self.extra_field_length + self.comment_length
+
+    @classmethod
+    def get_cd_entries(cls, bytes):
+        '''
+        Returns a list of CDEntry objects from given bytes
+        '''
+        cd_entries = []
+        i = 0
+        entry_pointer = 0
+        # len(bytes[entry_pointer:]) checked to ensure that we are not out of bytes
+        while (sizeCD < len(bytes) - sizeECD) and (len(bytes[entry_pointer:]) >= sizeCD):
+            cd_entry = CDEntry(bytes[entry_pointer:])
+            cd_entry.id = i
+            cd_entries.append(cd_entry)
+            entry_pointer += cd_entry.total_size
+            i += 1
+
+        return cd_entries
+
+
+
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -248,30 +303,16 @@ def main():
 
         i = cd_start_offset - (archive_size - request_data_size)
 
-    file_count = 0
-    while i + sizeCD < len(r.content) - sizeECD:
-        central_dir_header = struct.unpack(structCD, r.content[i:i+sizeCD])
-        
-        if central_dir_header[0] != int(signCD):
-            break
-        
-        filename_length = central_dir_header[_CD_FILENAME_LENGTH]
-        extra_field_length = central_dir_header[_CD_EXTRA_FIELD_LENGTH]
-        file_comment_length = central_dir_header[_CD_COMMENT_LENGTH]
-        local_header_offset = central_dir_header[_CD_LOCAL_HEADER_OFFSET]
-        compressed_size = central_dir_header[_CD_COMPRESSED_SIZE]
- 
-        filename = struct.unpack('<' + str(filename_length) + 's',
-                                 r.content[i + sizeCD:(i + sizeCD + filename_length)])
-        print filename[0]
-        download_file = raw_input('Download ? [Y/N] : ')
-        if download_file.lower() == 'y':
-            get_file(s, url, local_header_offset, filename[0])
-        i = i+ sizeCD + filename_length + extra_field_length + file_comment_length
 
-        file_count += 1
+    cd_entries = CDEntry.get_cd_entries(r.content[i:])
+    for cd_entry in cd_entries:
+        print cd_entry
 
-    assert ecd[_ECD_ENTRIES_TOTAL] == file_count
+        # download_file = raw_input('Download ? [Y/N] : ')
+        # if download_file.lower() == 'y':
+        #     get_file(s, url, local_header_offset, filename[0])
+
+    assert ecd[_ECD_ENTRIES_TOTAL] == len(cd_entries)
 
     
 if __name__ == '__main__':
