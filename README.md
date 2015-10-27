@@ -7,7 +7,7 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 * Web Server should support HTTP Range Request 
 
 ## Usage
-### List all files with IDs
+### List all files in the archive
 ````
 # python lszip.py http://example.com/zipfile.zip
 0 : bios/
@@ -31,6 +31,8 @@ Download 5 - newfile.txt: Extracted to newfile.txt
 ## Todo/Future Enhancements
 * Support ZIP64
 * Support Folder Download
+* More testing
+* Use temporary files rather than in-memory downloads
 * ~~Selective Download~~
 
 ## References
