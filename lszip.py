@@ -108,7 +108,6 @@ def generate_range_header(lowByte=0, highByte=''):
     range = 'bytes=%s-%s' %(lowByte, highByte)
     return {'Range': range}
 
-
 def zip_get_valid_ecd(bytes):
     '''
     Given bytes of data, this function validates it for 
@@ -153,19 +152,6 @@ def zip_get_ecd(bytes):
         startIndex -= 1
     return None
 
-def index_in_subarray(index, subarray_size, array_size):
-    '''
-    Checks whether the index of larger array lies inside the sub-array
-    made from skipping certain elements from the "front".
-    Eg: Array a = [2, 3, 44, 55, 666]
-        Subarray b = [44, 55, 666]
-        index_in_sub_array(1, len(b), len(a)) = False
-        index_in_sub_array(2, len(b), len(a)) = True
-    No check is done for out-of-bounds
-    '''
-    if index < array_size - subarray_size:
-        return False
-    return True
 
 class CDEntry(object):
     ''' 
@@ -243,9 +229,6 @@ class ZIPRetriever(object):
 
     ecd = None
 
-    # Requested data when downloading ECD. Maybe used to read Central
-    # Directory entries if its data falls inside this
-    ecd_request_data = None
 
     def __init__(self, url=''):
         self.session = requests.Session()
@@ -258,7 +241,10 @@ class ZIPRetriever(object):
         '''
         headers = generate_range_header(lowByte=lowByte, highByte=highByte)
         response = self.session.get(self.url, headers=headers)
-        assert response.status_code == 206
+
+        # Check if we are not getting partial content
+        if not int(response.headers['content-length']) < ZIP_ECD_MAX_SIZE:
+            assert response.status_code == 206
         return response
 
 
@@ -270,8 +256,6 @@ class ZIPRetriever(object):
         request_data_size = ZIP_ECD_MAX_SIZE
         response = self.get_response(lowByte=-(request_data_size))
         
-        # Populate archive size from reply header like : 'Content-Range': 22-23232/23233
-        self.archive_size = int(response.headers['Content-Range'].split('-')[1].split('/')[1])
         
         self.ecd = zip_get_ecd(response.content)
         self.ecd_request_data = response.content
@@ -289,23 +273,9 @@ class ZIPRetriever(object):
         # Get Central Directory start offset relative to whole ZIP archive
         cd_start_offset = ecd[_ECD_OFFSET]
 
-        # Check if Central Directory starts outside bytes we have already downloaded
-        if not index_in_subarray(cd_start_offset, ZIP_ECD_MAX_SIZE, self.archive_size):
-            # Download Central Directory
-            # print "Requesting Central Directory Entry"
-            # print "Now requesting bytes from:" + str(cd_start_offset)
-            r = self.get_response(lowByte=cd_start_offset)
-            return r.content
+        r = self.get_response(lowByte=cd_start_offset)
+        return r.content
 
-        else:
-            # Modify index (in terms of request_data_size == ZIP_ECD_MAX_SIZE ) to 
-            # start at cd_start_offset
-            # Eg: archive size = 12, request_data_size = 10, cd_start_offset=4
-            # Then, i = 4 - (12-10)
-
-            i = cd_start_offset - (self.archive_size - ZIP_ECD_MAX_SIZE)
-    
-            return self.ecd_request_data[i:]
 
     def get_cd_entries(self):
         '''
