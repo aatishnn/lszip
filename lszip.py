@@ -244,6 +244,10 @@ class ZIPRetriever(object):
 
     ecd = None
 
+    # Requested data when downloading ECD. Maybe used to read Central
+    # Directory entries if its data falls inside this
+    ecd_request_data = None
+
     def __init__(self, url=''):
         self.session = requests.Session()
         self.url = url
@@ -271,7 +275,7 @@ class ZIPRetriever(object):
         self.archive_size = int(response.headers['Content-Range'].split('-')[1].split('/')[1])
         
         self.ecd = zip_get_ecd(response.content)
-
+        self.ecd_request_data = response.content
         return self.ecd
 
     def get_cd_bytes(self):
@@ -286,14 +290,13 @@ class ZIPRetriever(object):
         # Get Central Directory start offset relative to whole ZIP archive
         cd_start_offset = ecd[_ECD_OFFSET]
 
-        # i represents index where Central Directory starts in request_data(r.content)
-        i = 0
         # Check if Central Directory starts outside bytes we have already downloaded
         if not index_in_subarray(cd_start_offset, ZIP_ECD_MAX_SIZE, self.archive_size):
             # Download Central Directory
             # print "Requesting Central Directory Entry"
             # print "Now requesting bytes from:" + str(cd_start_offset)
             r = self.get_response(lowByte=cd_start_offset)
+            return r.content
 
         else:
             # Modify index (in terms of request_data_size == ZIP_ECD_MAX_SIZE ) to 
@@ -302,8 +305,8 @@ class ZIPRetriever(object):
             # Then, i = 4 - (12-10)
 
             i = cd_start_offset - (self.archive_size - ZIP_ECD_MAX_SIZE)
-
-        return r.content[i:]
+    
+            return self.ecd_request_data[i:]
 
     def get_cd_entries(self):
         '''
