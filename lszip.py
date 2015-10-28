@@ -201,8 +201,7 @@ class CDEntry(object):
 
         self.compression_method = central_dir_header[_CD_COMPRESSION]
 
-        self.filename = struct.unpack('<' + str(self.filename_length) + 's',
-                                 bytes[sizeCD:sizeCD + self.filename_length])[0]
+        self.filename = bytes[sizeCD:sizeCD + self.filename_length].decode('utf-8')
     def __str__(self):
         return '%s : %s' %(self.id, self.filename)
 
