@@ -232,24 +232,6 @@ class CDEntry(object):
                 outfile.write(self.file_data)
 
 
-    @classmethod
-    def get_cd_entries(cls, bytes):
-        '''
-        Returns a list of CDEntry objects from given bytes
-        '''
-        cd_entries = []
-        i = 0
-        entry_pointer = 0
-        # len(bytes[entry_pointer:]) checked to ensure that we are not out of bytes
-        while (sizeCD < len(bytes) - sizeECD) and (len(bytes[entry_pointer:]) >= sizeCD):
-            cd_entry = CDEntry(bytes[entry_pointer:])
-            cd_entry.id = i
-            cd_entries.append(cd_entry)
-            entry_pointer += cd_entry.total_size
-            i += 1
-
-        return cd_entries
-
 class ZIPRetriever(object):
     '''
     Download Helper class that uses a single requests session
@@ -323,6 +305,30 @@ class ZIPRetriever(object):
 
         return r.content[i:]
 
+    def get_cd_entries(self):
+        '''
+        Returns a list of CDEntry objects, also save it inside the object
+        '''
+        # Get bytes from which Central Directory entries start
+        bytes = self.get_cd_bytes()
+
+        cd_entries = []
+
+        i = 0
+        entry_pointer = 0
+
+        # len(bytes[entry_pointer:]) checked to ensure that we are not out of bytes
+        while (sizeCD < len(bytes) - sizeECD) and (len(bytes[entry_pointer:]) >= sizeCD):
+            cd_entry = CDEntry(bytes[entry_pointer:])
+            cd_entry.id = i
+            cd_entries.append(cd_entry)
+            entry_pointer += cd_entry.total_size
+            i += 1
+
+        self.cd_entries = cd_entries
+
+        return cd_entries
+
     def get_local_header(self, cd_entry):
         '''
         Returns local header for given central dir entry
@@ -356,19 +362,18 @@ def main():
 
     url = args.url
 
-    retriever = ZIPRetriever(url)    
-    central_dir_data = retriever.get_cd_bytes()
+    retriever = ZIPRetriever(url)
+    retriever.get_cd_entries()
 
-    cd_entries = CDEntry.get_cd_entries(central_dir_data)
-    assert retriever.ecd[_ECD_ENTRIES_TOTAL] == len(cd_entries)
+    assert retriever.ecd[_ECD_ENTRIES_TOTAL] == len(retriever.cd_entries)
 
     if not args.nolist:
-        for cd_entry in cd_entries:
+        for cd_entry in retriever.cd_entries:
             print cd_entry
     
     if args.download:
         download_ids = args.download.split(',')
-        for id, cd_entry in enumerate(cd_entries):
+        for id, cd_entry in enumerate(retriever.cd_entries):
             if str(id) in download_ids:
                 if cd_entry.is_dir:
                     print "Download %s - %s:Directory Download not supported" %(id, cd_entry.filename)
