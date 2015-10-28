@@ -8,8 +8,8 @@ import argparse
 debug = False
 
 if debug:
-    import httplib
-    httplib.HTTPConnection.debuglevel = 5
+    import http.client
+    http.client.HTTPConnection.debuglevel = 5
 
 # Structure "End of central directory(ECD)" supports variable length
 # comments at the end of file. Length of comment is specified by 2 bytes
@@ -369,14 +369,14 @@ def main():
 
     if not args.nolist:
         for cd_entry in retriever.cd_entries:
-            print cd_entry
+            print(cd_entry)
     
     if args.download:
         download_ids = args.download.split(',')
         for id, cd_entry in enumerate(retriever.cd_entries):
             if str(id) in download_ids:
                 if cd_entry.is_dir:
-                    print "Download %s - %s:Directory Download not supported" %(id, cd_entry.filename)
+                    print("Download %s - %s:Directory Download not supported" %(id, cd_entry.filename))
                     continue
                 local_header = retriever.get_local_header(cd_entry)
                 data = retriever.get_file_data(cd_entry, local_header)
@@ -387,7 +387,7 @@ def main():
 
                 filename = os.path.basename(cd_entry.filename)
                 cd_entry.extract(filename)
-                print "Download %s - %s: Extracted to %s" %(id, cd_entry.filename, filename)
+                print("Download %s - %s: Extracted to %s" %(id, cd_entry.filename, filename))
 
 
     
