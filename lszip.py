@@ -307,7 +307,7 @@ class ZIPRetriever(object):
         r = self.get_response(data_start_offset, data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
         return r.content
 
-    def extract(self, cd_entry, filename=''):
+    def _extract(self, cd_entry, filename=''):
         '''
         Extracts the data represented by cd_entry to given filename
         '''
@@ -327,6 +327,21 @@ class ZIPRetriever(object):
                 outfile.write(cd_entry.file_data)
 
             print("Download %s : Extracted to %s" %(cd_entry.filename, filename))
+    def _extract_dir(self, cd_entry):
+        pass
+
+    def extract(self, cd_entry):
+        if cd_entry.is_dir:
+            print("Download %s - %s:Directory Download not supported" %(id, cd_entry.filename))
+            # return self._extract_dir(cd_entry)
+        else:
+            local_header = self.get_local_header(cd_entry)
+            data = self.get_file_data(cd_entry, local_header)
+
+            cd_entry.file_data = data
+            # Some archivers set this value only in local header
+            cd_entry.compression_method = local_header[_LH_COMPRESSION]
+            return self._extract(cd_entry)
 
 
 
@@ -353,15 +368,6 @@ def main():
         download_ids = args.download.split(',')
         for id, cd_entry in enumerate(retriever.cd_entries):
             if str(id) in download_ids:
-                if cd_entry.is_dir:
-                    print("Download %s - %s:Directory Download not supported" %(id, cd_entry.filename))
-                    continue
-                local_header = retriever.get_local_header(cd_entry)
-                data = retriever.get_file_data(cd_entry, local_header)
-
-                cd_entry.file_data = data
-                # Some archivers set this value only in local header
-                cd_entry.compression_method = local_header[_LH_COMPRESSION]
                 retriever.extract(cd_entry)
 
 
