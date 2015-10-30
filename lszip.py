@@ -199,22 +199,7 @@ class CDEntry(object):
         '''
         return sizeCD + self.filename_length + self.extra_field_length + self.comment_length
 
-    def extract(self, filename):
-        '''
-        Extracts the data to given filename
-        '''
-
-        if self.is_dir:
-            raise NotImplementedError('Directory Download is not implemented')
-
-        if self.compression_method not in (_COMPR_DEFLATE, _COMPR_STORED):
-            return -1
-        with open(filename, 'wb') as outfile:
-            if self.compression_method == _COMPR_DEFLATE:
-                # Negative value suppresses standard gzip header check
-                outfile.write(zlib.decompress(self.file_data, -15))
-            elif self.compression_method == _COMPR_STORED:
-                outfile.write(self.file_data)
+    
 
 
 class ZIPRetriever(object):
@@ -322,6 +307,27 @@ class ZIPRetriever(object):
         r = self.get_response(data_start_offset, data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
         return r.content
 
+    def extract(self, cd_entry, filename=''):
+        '''
+        Extracts the data represented by cd_entry to given filename
+        '''
+        if not filename:
+            filename = os.path.basename(cd_entry.filename)
+
+        if cd_entry.is_dir:
+            raise NotImplementedError('Directory Download is not implemented')
+
+        if cd_entry.compression_method not in (_COMPR_DEFLATE, _COMPR_STORED):
+            return -1
+        with open(filename, 'wb') as outfile:
+            if cd_entry.compression_method == _COMPR_DEFLATE:
+                # Negative value suppresses standard gzip header check
+                outfile.write(zlib.decompress(cd_entry.file_data, -15))
+            elif cd_entry.compression_method == _COMPR_STORED:
+                outfile.write(cd_entry.file_data)
+
+            print("Download %s : Extracted to %s" %(cd_entry.filename, filename))
+
 
 
 def main():
@@ -356,10 +362,7 @@ def main():
                 cd_entry.file_data = data
                 # Some archivers set this value only in local header
                 cd_entry.compression_method = local_header[_LH_COMPRESSION]
-
-                filename = os.path.basename(cd_entry.filename)
-                cd_entry.extract(filename)
-                print("Download %s - %s: Extracted to %s" %(id, cd_entry.filename, filename))
+                retriever.extract(cd_entry)
 
 
     
