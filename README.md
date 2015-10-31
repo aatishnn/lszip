@@ -31,7 +31,8 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 ````
 
 By default, this program will download files in current working directory but 
-it will create folder trees if needed. This behavior can be changed by using `--cwd`.
+it will create folder trees if needed. This directory can be changed by 
+using `--cwd`.
 
 ## Usage
 
@@ -50,7 +51,7 @@ optional arguments:
                        Defaults to current directory.
 ````
 
-
+*Expect bugs*
 ## Todo/Future Enhancements
 * Support ZIP64
 * ~~Support Folder Download~~
