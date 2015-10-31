@@ -53,7 +53,7 @@ optional arguments:
 
 ## Todo/Future Enhancements
 * Support ZIP64
-* ~Support Folder Download~
+* ~~Support Folder Download~~
 * More testing
 * Use temporary files rather than in-memory downloads
 * ~~Selective Download~~
