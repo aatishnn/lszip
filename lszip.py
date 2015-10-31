@@ -214,6 +214,10 @@ class ZIPRetriever(object):
 
     ecd = None
 
+    # Default Current Working Directory to jump once directory
+    # extraction completes
+    BASE_CWD = os.getcwd()
+
 
     def __init__(self, url=''):
         self.session = requests.Session()
@@ -307,33 +311,44 @@ class ZIPRetriever(object):
         r = self.get_response(data_start_offset, data_start_offset + local_header[_LH_COMPRESSED_SIZE] - 1)
         return r.content
 
-    def _extract(self, cd_entry, filename=''):
+    def _extract(self, cd_entry):
         '''
         Extracts the data represented by cd_entry to given filename
         '''
-        if not filename:
-            filename = os.path.basename(cd_entry.filename)
 
         if cd_entry.is_dir:
             raise NotImplementedError('Directory Download is not implemented')
 
         if cd_entry.compression_method not in (_COMPR_DEFLATE, _COMPR_STORED):
             return -1
-        with open(filename, 'wb') as outfile:
+        with open(cd_entry.filename, 'wb') as outfile:
             if cd_entry.compression_method == _COMPR_DEFLATE:
                 # Negative value suppresses standard gzip header check
                 outfile.write(zlib.decompress(cd_entry.file_data, -15))
             elif cd_entry.compression_method == _COMPR_STORED:
                 outfile.write(cd_entry.file_data)
 
-            print("Download %s : Extracted to %s" %(cd_entry.filename, filename))
+            print("Extracted to %s" %(cd_entry.filename))
     def _extract_dir(self, cd_entry):
-        pass
+        # Recheck here just to be sure
+        if cd_entry.is_dir:
+            dirname = cd_entry.filename
+            print("Now at %s ..Making -p %s" %(os.getcwd(), dirname))
+            os.makedirs(dirname, exist_ok=True)
+            for ce in self.cd_entries:
+                # Check to stop recursively extracting same dir ce != cd_entry
+                # if dirname = 'windows/d/', file1 = 'windows/d/e', file2 = 'windows/d/e/f.txt'
+                # All these will be downloaded as they all have common prefix 'windows/d'
+                if ce != cd_entry and dirname == os.path.commonprefix([dirname, ce.filename]):
+                    self.extract(ce)
+
 
     def extract(self, cd_entry):
+        # Change to default download dir before extracting
+        os.chdir(self.BASE_CWD)
+        print("Now at %s ..Changing to %s" %(os.getcwd(), self.BASE_CWD))
         if cd_entry.is_dir:
-            print("Download %s - %s:Directory Download not supported" %(id, cd_entry.filename))
-            # return self._extract_dir(cd_entry)
+            return self._extract_dir(cd_entry)
         else:
             local_header = self.get_local_header(cd_entry)
             data = self.get_file_data(cd_entry, local_header)
