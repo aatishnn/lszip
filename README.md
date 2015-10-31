@@ -6,8 +6,8 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 * Python 3
 * Web Server should support HTTP Range Request 
 
-## Usage
-### List all files in the archive
+## Examples
+### List all files and directories in the archive
 ````
 # python lszip.py http://example.com/zipfile.zip
 0 : bios/
@@ -20,17 +20,40 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 ### Download hello.txt and bright.tmp
 ````
 # python lszip.py --nolist --download 1,4 http://example.com/zipfile.zip
-Download 1 - bios/hello.txt: Extracted to hello.txt
-Download 4 - tmp/bright.tmp: Extracted to bright.tmp
 ```` 
 ### Download newfile.txt
 ````
 # python lszip.py --nolist --download 5 http://example.com/zipfile.zip
-Download 5 - newfile.txt: Extracted to newfile.txt
-```` 
+````
+### Download directory `tmp` and all its contents
+````
+# python lszip.py --nolist --download 3 http://example.com/zipfile.zip
+````
+
+By default, this program will download files in current working directory but 
+it will create folder trees if needed. This behavior can be changed by using `--cwd`.
+
+## Usage
+
+````
+usage: lszip.py [-h] [--nolist] [--download DOWNLOAD] [--cwd CWD] url
+
+positional arguments:
+  url                  ZIP File's URL
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --nolist             Disable Listing of Files
+  --download DOWNLOAD  List of Comma Separated IDs to download. IDs are listed
+                       in listing mode.
+  --cwd CWD            Set current working directory where downloads are done.
+                       Defaults to current directory.
+````
+
+
 ## Todo/Future Enhancements
 * Support ZIP64
-* Support Folder Download
+* ~Support Folder Download~
 * More testing
 * Use temporary files rather than in-memory downloads
 * ~~Selective Download~~
