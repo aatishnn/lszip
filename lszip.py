@@ -219,7 +219,10 @@ class ZIPRetriever(object):
     BASE_CWD = os.getcwd()
 
 
-    def __init__(self, url=''):
+    def __init__(self, url, cwd):
+        # Change to working directory if specified
+        if cwd:
+            self.BASE_CWD = cwd 
         self.session = requests.Session()
         self.url = url
 
@@ -313,11 +316,9 @@ class ZIPRetriever(object):
 
     def _extract(self, cd_entry):
         '''
-        Extracts the data represented by cd_entry to given filename
+        Extracts the data represented by cd_entry to given filename.
+        Directory tree should exist if filename contains so.
         '''
-
-        if cd_entry.is_dir:
-            raise NotImplementedError('Directory Download is not implemented')
 
         if cd_entry.compression_method not in (_COMPR_DEFLATE, _COMPR_STORED):
             return -1
@@ -330,7 +331,7 @@ class ZIPRetriever(object):
 
             print("Extracted to %s" %(cd_entry.filename))
     def _extract_dir(self, cd_entry):
-        # Recheck here just to be sure
+        # Recheck here that cd_entry is a directory
         if cd_entry.is_dir:
             dirname = cd_entry.filename
             print("Now at %s ..Making -p %s" %(os.getcwd(), dirname))
@@ -344,6 +345,10 @@ class ZIPRetriever(object):
 
 
     def extract(self, cd_entry):
+        '''
+        Download file or folder represeted by cd_entry. This function
+        will create directory tree if needed
+        '''
         # Change to default download dir before extracting
         os.chdir(self.BASE_CWD)
         print("Now at %s ..Changing to %s" %(os.getcwd(), self.BASE_CWD))
@@ -356,6 +361,10 @@ class ZIPRetriever(object):
             cd_entry.file_data = data
             # Some archivers set this value only in local header
             cd_entry.compression_method = local_header[_LH_COMPRESSION]
+
+            # Create directory tree if it does not exist
+            parentdir = os.path.dirname(cd_entry.filename)
+            os.makedirs(parentdir, exist_ok=True)
             return self._extract(cd_entry)
 
 
@@ -366,11 +375,17 @@ def main():
     parser.add_argument("--nolist", action="store_true", default=False, help="Disable Listing of Files")
     parser.add_argument("--download", type=str,
                        help='List of Comma Separated IDs to download. IDs are listed in listing mode.')
+    parser.add_argument("--cwd", type=str,
+                       help='''Set current working directory where downloads are done.
+                        Defaults to current directory.''')
     args = parser.parse_args()
 
     url = args.url
 
-    retriever = ZIPRetriever(url)
+    if args.cwd:
+        # Change it to absolute path so that os.chdir() can work at any level
+        args.cwd = os.path.abspath(args.cwd)
+    retriever = ZIPRetriever(url, cwd=args.cwd)
     retriever.get_cd_entries()
 
     assert retriever.ecd[_ECD_ENTRIES_TOTAL] == len(retriever.cd_entries)
