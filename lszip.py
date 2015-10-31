@@ -332,19 +332,22 @@ class ZIPRetriever(object):
             elif cd_entry.compression_method == _COMPR_STORED:
                 outfile.write(cd_entry.file_data)
 
-            print("Extracted to %s" %(cd_entry.filename))
+            print("Extracted : %s" %(os.path.join(self.BASE_CWD, cd_entry.filename)))
     def _extract_dir(self, cd_entry):
         # Recheck here that cd_entry is a directory
         if cd_entry.is_dir:
             dirname = cd_entry.filename
-            print("Now at %s ..Making -p %s" %(os.getcwd(), dirname))
+            #print("Now at %s ..Making -p %s" %(os.getcwd(), dirname))
             os.makedirs(dirname, exist_ok=True)
             for ce in self.cd_entries:
                 # Check to stop recursively extracting same dir ce != cd_entry
                 # if dirname = 'windows/d/', file1 = 'windows/d/e', file2 = 'windows/d/e/f.txt'
                 # All these will be downloaded as they all have common prefix 'windows/d'
                 if ce != cd_entry and dirname == os.path.commonprefix([dirname, ce.filename]):
-                    self.extract(ce)
+                    # We don't need to extract inner directories as they will be created
+                    # while extracting files inside them
+                    if not ce.is_dir:
+                        self.extract(ce)
 
 
     def extract(self, cd_entry):
@@ -354,7 +357,7 @@ class ZIPRetriever(object):
         '''
         # Change to default download dir before extracting
         os.chdir(self.BASE_CWD)
-        print("Now at %s ..Changing to %s" %(os.getcwd(), self.BASE_CWD))
+        #print("Now at %s ..Changing to %s" %(os.getcwd(), self.BASE_CWD))
         if cd_entry.is_dir:
             return self._extract_dir(cd_entry)
         else:
@@ -380,7 +383,7 @@ def main():
                        help='List of Comma Separated IDs to download. IDs are listed in listing mode.')
     parser.add_argument("--cwd", type=str,
                        help='''Set current working directory where downloads are done.
-                        Defaults to current directory.''')
+                        Defaults to current directory. This directory should exist.''')
     args = parser.parse_args()
 
     url = args.url
