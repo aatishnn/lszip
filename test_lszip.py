@@ -22,9 +22,10 @@ class ZipTest(unittest.TestCase):
         # test_file_comment.zip contains 1 text file with archive comment
         # Archive comment
         self.archive_comment = 'Hello THere\r\nI am fine.'
-        self.bytes = open('test_files/test_file.zip').read()
-        self.bytes_with_comment = open('test_files/test_file_comment.zip', 
-                                       'rb').read()
+        with open('test_files/test_file.zip', 'rb') as zipfile:
+            self.bytes = zipfile.read()
+        with open('test_files/test_file_comment.zip', 'rb') as zipfile:
+            self.bytes_with_comment = zipfile.read()
     def test_zip_get_ecd(self):
         ecd = lszip.zip_get_ecd(self.bytes_with_comment)
         self.assertIsNotNone(ecd)
