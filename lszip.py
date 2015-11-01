@@ -340,10 +340,9 @@ class ZIPRetriever(object):
             #print("Now at %s ..Making -p %s" %(os.getcwd(), dirname))
             os.makedirs(dirname, exist_ok=True)
             for ce in self.cd_entries:
-                # Check to stop recursively extracting same dir ce != cd_entry
                 # if dirname = 'windows/d/', file1 = 'windows/d/e', file2 = 'windows/d/e/f.txt'
                 # All these will be downloaded as they all have common prefix 'windows/d'
-                if ce != cd_entry and dirname == os.path.commonprefix([dirname, ce.filename]):
+                if dirname == os.path.commonprefix([dirname, ce.filename]):
                     # We don't need to extract inner directories as they will be created
                     # while extracting files inside them
                     if not ce.is_dir:
