@@ -9,7 +9,7 @@ Useful for large ZIP archives ( < 4GB for now, doesn't support ZIP64)
 ## Examples
 ### List all files and directories in the archive
 ````
-# python lszip.py http://example.com/zipfile.zip
+# python3 lszip.py http://example.com/zipfile.zip
 0 : bios/
 1 : bios/hello.txt 
 2 : bios/hello2.txt
